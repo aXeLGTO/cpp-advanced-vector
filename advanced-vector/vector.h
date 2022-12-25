@@ -258,12 +258,13 @@ public:
         return const_cast<iterator>(pos);
     }
 
-    iterator Insert(const_iterator pos, const T& value) {
+    template <typename Ref>
+    iterator Insert(const_iterator pos, Ref&& value) {
         size_t distance = pos - data_.GetAddress();
 
         if (size_ == Capacity()) {
             RawMemory<T> new_data(size_ == 0 ? 1 : size_ * 2);
-            auto* tmp = new (new_data + distance) T(value);
+            auto* tmp = new (new_data + distance) T(std::forward<Ref>(value));
 
             try {
                 CopyN(data_.GetAddress(), distance, new_data.GetAddress());
@@ -282,45 +283,10 @@ public:
             std::destroy_n(data_.GetAddress(), size_);
             data_.Swap(new_data);
         } else {
-            auto copy(value);
-            new (data_ + size_) T(std::move(*(end() - 1)));
+            auto copy(std::forward<Ref>(value));
+            new (data_ + size_) T(std::forward<Ref>(*(end() - 1)));
             std::move_backward(const_cast<iterator>(pos), end() - 1, end());
-            data_[distance] = std::move(copy);
-        }
-
-        ++size_;
-
-        return data_ + distance;
-    }
-
-    iterator Insert(const_iterator pos, T&& value) {
-        size_t distance = pos - data_.GetAddress();
-
-        if (size_ == Capacity()) {
-            RawMemory<T> new_data(size_ == 0 ? 1 : size_ * 2);
-            auto* tmp = new (new_data + distance) T(std::move(value));
-
-            try {
-                CopyN(data_.GetAddress(), distance, new_data.GetAddress());
-            } catch(...) {
-                tmp->~T();
-                throw;
-            }
-
-            try {
-                CopyN(data_ + distance, size_ - distance, new_data.GetAddress() + distance + 1);
-            } catch(...) {
-                std::destroy_n(new_data.GetAddress(), distance + 1);
-                throw;
-            }
-
-            std::destroy_n(data_.GetAddress(), size_);
-            data_.Swap(new_data);
-        } else {
-            auto copy(std::move(value));
-            new (data_ + size_) T(std::move(*(end() - 1)));
-            std::move_backward(const_cast<iterator>(pos), end() - 1, end());
-            data_[distance] = std::move(copy);
+            data_[distance] = std::forward<Ref>(copy);
         }
 
         ++size_;
