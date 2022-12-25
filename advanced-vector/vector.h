@@ -240,8 +240,7 @@ public:
             if (distance < size_) {
                 new (data_ + size_) T(std::move(*(end() - 1)));
                 std::move_backward(const_cast<iterator>(pos), end() - 1, end());
-                T copy(std::forward<Args>(args)...);
-                data_[distance] = std::move(copy);
+                data_[distance] = std::move(T(std::forward<Args>(args)...));
             } else {
                 new (data_ + distance) T(std::forward<Args>(args)...);
             }
@@ -252,46 +251,15 @@ public:
         return data_ + distance;
     }
 
+    template <typename Ref>
+    iterator Insert(const_iterator pos, Ref&& value) {
+        return Emplace(pos, std::forward<Ref>(value));
+    }
+
     iterator Erase(const_iterator pos) /*noexcept(std::is_nothrow_move_assignable_v<T>)*/ {
         std::move(std::next(const_cast<iterator>(pos)), end(), const_cast<iterator>(pos));
         data_[--size_].~T();
         return const_cast<iterator>(pos);
-    }
-
-    template <typename Ref>
-    iterator Insert(const_iterator pos, Ref&& value) {
-        size_t distance = pos - data_.GetAddress();
-
-        if (size_ == Capacity()) {
-            RawMemory<T> new_data(size_ == 0 ? 1 : size_ * 2);
-            auto* tmp = new (new_data + distance) T(std::forward<Ref>(value));
-
-            try {
-                CopyN(data_.GetAddress(), distance, new_data.GetAddress());
-            } catch(...) {
-                tmp->~T();
-                throw;
-            }
-
-            try {
-                CopyN(data_ + distance, size_ - distance, new_data.GetAddress() + distance + 1);
-            } catch(...) {
-                std::destroy_n(new_data.GetAddress(), distance + 1);
-                throw;
-            }
-
-            std::destroy_n(data_.GetAddress(), size_);
-            data_.Swap(new_data);
-        } else {
-            auto copy(std::forward<Ref>(value));
-            new (data_ + size_) T(std::forward<Ref>(*(end() - 1)));
-            std::move_backward(const_cast<iterator>(pos), end() - 1, end());
-            data_[distance] = std::forward<Ref>(copy);
-        }
-
-        ++size_;
-
-        return data_ + distance;
     }
 
     void Reserve(size_t new_capacity) {
